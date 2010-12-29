@@ -1,0 +1,35 @@
+<project name="blender" basedir="." default="all">
+
+  <property name="jarfile" value="game.jar"/>
+
+  <path id="classpath">
+    <pathelement location="lib/lwjgl.jar"/>
+    <pathelement location="lib/lwjgl_util.jar"/>
+    <pathelement location="lib/${jarfile}"/>
+  </path>
+
+  <target name="all" depends="jar"/>
+
+  <target name="compile" description="compile the source">
+    <mkdir dir="build"/>
+    <javac srcdir="src" destdir="build" debug="true" 
+           classpathref="classpath"/>
+  </target>
+
+  <target name="jar" depends="compile" description="create the jar">
+    <mkdir dir="lib"/>
+    <jar jarfile="lib/${jarfile}" basedir="build"/>
+  </target>
+
+  <target name="clean" description="clean up">
+    <delete dir="build"/>
+  </target>
+
+  <target name="run" description="run the program">
+    <java classname="blender.Main" 
+          fork="true" 
+          classpathref="classpath">
+      <jvmarg value="-Djava.library.path=native"/>
+    </java>
+  </target>
+</project>
