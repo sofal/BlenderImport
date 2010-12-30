@@ -6,11 +6,11 @@ import java.io.BufferedReader;
 import java.util.StringTokenizer; 
 import org.lwjgl.BufferUtils; 
 import java.nio.FloatBuffer; 
+import blender.GameWindow;
 /** 
  * parseData() reads the exported Blender file and extracts the data 
  * for each key frame into a FrameData object. FrameData is a private 
- * inner class. The draw() method uses this data to draw the model exported. 
- * @author ste3e 
+ * inner class. The draw() method uses this data to draw the model exported.  * @author ste3e 
  */ 
 public class MeshData { 
   private int[] keyframes;//array of key frame numbers 
@@ -23,7 +23,9 @@ public class MeshData {
   private int currentFrame=0;//current frame of animation 
   private int animCount=0;//number of frames in the animation 
   private int vertCount=0;//number of vertices per frame 
-  private int fps=0; 
+  private int _fps = 0; // file-specified animation frames per second
+  private int _interval = 0; // calculated interval between frames (in ms)
+  private int _remainder = 0; // excess ms that didn't make a full frame advance since the last loop
   private int idx=-1;//used for parsing the data file 
 
   private int loopCounter=0;//used to play the animation 
@@ -46,10 +48,13 @@ public class MeshData {
         if(line.startsWith("?")){ 
           animCount++;//animCount = number of "?" in file 
         } 
-        if(line.startsWith("$") && fps==0){ 
+        if(line.startsWith("$") && _fps==0){ 
           tok=new StringTokenizer(line); 
           tok.nextToken(); 
-          fps=Integer.parseInt(tok.nextToken()); 
+          _fps=Integer.parseInt(tok.nextToken()); 
+          // Divide 1000ms by fps parsed from file to obtain the ms 
+          //  interval for the animation
+          _interval = 1000/_fps;
         } 
         if(line.startsWith("v")){ 
           vertCount++; 
@@ -165,11 +170,16 @@ public class MeshData {
     else 
       animations[idx]=new FrameData(v, n, u, c); 
   }
+
   /* 
-   * We use glDrawArrays to draw the monkey. 
+   * We use glDrawArrays to draw the object
    */ 
-  public void draw(){ 
-    loopCounter++;//control animation change 
+  public void render(GameWindow window, int delta){ 
+    // delta is the milliseconds since the last game loop
+    //loopCounter++;//control animation change 
+    // obtain the current frame based on the time since the last render
+    // obtain a remainder to add on to the next loop
+
     GL11.glTranslatef(0.0f, -2.0f, -10.0f);//position in front of camera 
     GL11.glRotatef(rot++, 0.0f, 1.0f, 0.0f);//rotate 
     /* 
@@ -186,6 +196,7 @@ public class MeshData {
     GL11.glNormalPointer(0, animations[currentFrame].getNorms()); 
     GL11.glTexCoordPointer(2, 0, animations[currentFrame].getCoords()); 
     GL11.glColorPointer(3, 0, animations[currentFrame].getCols()); 
+    //System.out.println(currentFrame);
     /* 
      * This single line of code does the work of all the 
      * glBegin(TRIANGLES)... glEnd() function calls normally used. 
@@ -194,17 +205,29 @@ public class MeshData {
      * through the arrays using pointer math. 
      */ 
     GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertCount); 
+    
+    //System.out.println(vertCount);
     //a loop to handle animation change 
-    if(loopCounter>24){ 
-      loopCounter=0; 
-      currentFrame++; 
-
-    } 
-    if(currentFrame==animCount){ 
-      currentFrame=0; 
-
-    } 
+    //if(loopCounter>4){ 
+    //  loopCounter=0; 
+    //} 
   } 
+
+  /**
+   * Update the state of the Mesh, namely its current frame.
+   * @param window the game window
+   * @param delta the time (in ms) since the last update
+   */
+  public void update(GameWindow window, int delta) {
+    // _remainder keeps track of the ms that build up just in case not
+    // enough time passes to warrant a frame change (i.e. if time passed
+    // is less than _interval
+    currentFrame = currentFrame + (_remainder + delta)/_interval;
+    _remainder = ((delta + _remainder) % _interval);
+    if(currentFrame >= animCount) {
+      currentFrame = 0; 
+    } 
+  }
 
 
   /* 
