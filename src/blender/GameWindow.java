@@ -12,14 +12,14 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.util.glu.GLU;
 
 /**
- * A window to display the game in LWJGL.
- * Taken from the Asteroids LWJGL tutorial
- * Created by Kevin Glass
+ * A window to display the game in LWJGL
+ * Ported from the Asteroids LWJGL tutorial
+ * Created by Kevin Glass.
  * 
  * @author Kevin Glass
  */
 /**
- * @author xabotage
+ * @author (modified by) xabotage
  *
  */
 public class GameWindow {
@@ -123,34 +123,6 @@ public class GameWindow {
    * Initialise the window and the resources used for the game
    */
   public void init() {
-    /*
-    int w=1024; 
-    int h=768; 
-    try{ 
-        Display.setDisplayMode(new DisplayMode(w, h)); 
-        Display.setVSyncEnabled(true); 
-        Display.setTitle("Loading Animation from Blender 2.5"); 
-        Display.create(); 
-    }catch(Exception e){ 
-        System.out.println("Error setting up display"); 
-        System.exit(0);
-    } 
-    GL11.glViewport(0,0,w,h); 
-    GL11.glMatrixMode(GL11.GL_PROJECTION); 
-    GL11.glLoadIdentity(); 
-    GLU.gluPerspective(45.0f, ((float)w/(float)h),0.1f,100.0f); 
-    GL11.glMatrixMode(GL11.GL_MODELVIEW); 
-    GL11.glLoadIdentity(); 
-    GL11.glShadeModel(GL11.GL_SMOOTH); 
-    GL11.glClearColor(0.0f, 0.0f, 0.0f, 0.0f); 
-    GL11.glClearDepth(1.0f); 
-    GL11.glEnable(GL11.GL_DEPTH_TEST); 
-    GL11.glDepthFunc(GL11.GL_LEQUAL); 
-    GL11.glHint(GL11.GL_PERSPECTIVE_CORRECTION_HINT, GL11.GL_NICEST); 
-    System.out.println("initialized");
-    */
-
-
     // initialize our sound loader to determine if we can
     // play sounds on this system
     //SoundLoader.get().init();
