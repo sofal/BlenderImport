@@ -7,7 +7,7 @@ import org.lwjgl.opengl.GL11;
 
 public class TestState implements GameState {
 
-  private MeshData _mesh;
+  private Mesh _mesh;
 
   /**
    * Retrieve a name that can be used to identify this state
@@ -29,8 +29,13 @@ public class TestState implements GameState {
    * for initialisation.
    */
   public void init(GameWindow window) throws IOException {
-    _mesh = new MeshData(); // quick-load a mesh
-    _mesh.parseData("assets/Data.txt");
+    //_mesh = new MeshData(); // quick-load a mesh
+    //_mesh.parseData("assets/Data.txt");
+
+
+    // testing binary loader
+    _mesh = new Mesh("test"); // quick-load new mesh class
+    ActionLoader.importAction("assets/BinData.txt", "test_action", _mesh); 
   }
   
   /**

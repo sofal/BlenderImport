@@ -19,163 +19,226 @@
 # Contributors: Stephen Jones
 import bpy
 import mathutils
+import struct # helps with writing binary files
 import os
 
-keyFrames=[1, 6]
-fps=60
-filepath="/home/executor/dev/blender/LWJGLexport.txt"
-doVertCols=True
-vCount=0
-scene=bpy.context.scene
-context=bpy.context
-object=context.object
+# TODO: set keyframe range dynamically
+_keyFrames = range(1, 7) # note that ranges exclude last element
+# grab the animation frames per second dynamically
+# TODO: allow dynamic specification of filepath
+_filepath="./assets/BinData.txt"
+doVertCols = True
+vertexCount = 0
+_scene = bpy.context.scene
+_object = bpy.context.object
+_fps = _scene.render.fps
 
 
-class ProcessVerts():
-    def __init__(self, mesh, vert, face, faceIdx, jindex, file):
-        def roundVec3(v):
-            return round(v[0], 6), round(v[1], 6), round(v[2], 6)
+def ProcessVerts(mesh, vert, face, jindex, file):
+  # mesh = the mesh object
+  # vert = the vertex object being processed
+  # face = the face object that this vertex emerges from
+  # jindex = the vertex's index with respect to face
+  # file = duh
 
-        def roundVec2(v):
-            return round(v[0], 6), round(v[1], 6)
+  # methods for rounding off tuples
+  def roundVec3(v):
+    return round(v[0], 6), round(v[1], 6), round(v[2], 6)
 
-        meshVerts=mesh.vertices
-        v=roundVec3(tuple(vert.co))
+  def roundVec2(v):
+    return round(v[0], 6), round(v[1], 6)
 
-        if face.use_smooth:
-            normal=tuple(v.normal)
-            normalKey=roundVec3(normal)
-        else:
-            normal=tuple(face.normal)
-            normal=roundVec3(normal)
+  # set v to the vertex positions
+  v = roundVec3(tuple(vert.co))
 
-        if len(mesh.uv_textures)>0:
-            uvLayer=mesh.uv_textures.active
-            uvLayer=uvLayer.data
-            uv=uvLayer[faceIdx]
-            uv=uv.uv1, uv.uv2, uv.uv3, uv.uv4
-            uvCoord=uv[jindex][0], 1.0-uv[jindex][1]
-            uvCoord=roundVec2(uvCoord)
-        else:
-            uvCoord=v.uvco[0], 1.0-v.uvco[1]
-            uvCoord=roundVec2(uvCoord)
+  # Determine, based on Smooth or Flat shading, which normal to use
+  # NOTE: experimentation has proved this to be useless so far.
+  # If you really want to control smooth/flat shading, use the
+  # GL11.glModelShading(GL11.<GL_FLAT/GL_SMOOTH>) command in your
+  # LWJGL game
+  if face.use_smooth: # smooth shading, use the vertex normal
+    normal = tuple(vert.normal)
+    normalKey = roundVec3(normal)
+  else: # flat shading, use the face normal
+    normal = tuple(face.normal)
+    normal = roundVec3(normal)
 
-        if doVertCols:
-            colLayer = mesh.vertex_colors.active
-            print(len(colLayer))
-            colLayer = colLayer.data
-            col=colLayer[faceIdx]
-            col = col.color1, col.color2, col.color3, col.color4
-            color=col[jindex]
-            color = round(color[0], 6), round(color[1], 6), round(color[2], 6)
+  # Use a UV texture if one exists
+  if len(mesh.uv_textures) > 0:
+    # obtain the UV layer
+    uvLayer = mesh.uv_textures.active.data
+    # obtain the uv coord struct for this face
+    uv = uvLayer[face.index]
+    # split that struct into a tuple
+    uv = uv.uv1, uv.uv2, uv.uv3, uv.uv4
+    # set uvCoord to the x and y values
+    # (using 1.0 - uv[jindex][1] because of y-axis flip from blender
+    #   interface to LWJGL gamescreen
+    uvCoord = uv[jindex][0], 1.0 - uv[jindex][1]
+    #round it off
+    uvCoord = roundVec2(uvCoord)
+  else: 
+    # TODO: this looks like BS right here, so currently UV textures
+    # aren't actually optional
+    uvCoord = vert.uvco[0], 1.0 - vert.uvco[1]
+    uvCoord = roundVec2(uvCoord)
 
-        file.write('v %.6f %.6f  %.6f \n' % v)
-        file.write('n %.6f %.6f  %.6f \n' % normal) # no
-        file.write('u %.6f %.6f  \n' %uvCoord) # uv
+  if doVertCols:
+    # obtain the color layer
+    colLayer = mesh.vertex_colors.active.data
+    # obtain the color struct for this face
+    col = colLayer[face.index]
+    # split that struct into a tuple
+    col = col.color1, col.color2, col.color3, col.color4
+    # obtain the vertex's color
+    color = col[jindex]
+    # round it off
+    color = roundVec3(color)
 
-        if doVertCols:
-            file.write('c %f %f  %f \n' % color) # col
+  # now that's over with, write it all to binary
+  # 'v' indicates the next 3 floats are vertex coords
+  file.write(struct.pack('<c', 'v')) 
+  file.write(struct.pack('>3f', v[0], v[1], v[2])) 
 
-        file.write('\n')
-        print(v)
+  # 'n' indicates the next 3 floats are normal values
+  file.write(struct.pack('<c', 'n')) 
+  file.write(struct.pack('>3f', normal[0], normal[1], normal[2])) 
 
+  # 'u' indicates the next 2 floats are UV coords
+  file.write(struct.pack('<c', 'u')) 
+  file.write(struct.pack('>2f', uvCoord[0], uvCoord[1])) 
 
-class ProcessFace():
-    def __init__(self, mesh, face, faceIdx, file):
-        meshVerts=mesh.vertices
-        quadVert=list()
-        quadIdx=list()
-
-        for jindex, vert in enumerate(face.vertices):
-            if(len(face.vertices)==3):
-                 ProcessVerts(mesh, meshVerts[vert], face, faceIdx, jindex, file)
-                 print("Processing tri\n")
-            if(len(face.vertices)==4):
-                 quadVert.append(meshVerts[vert])
-                 quadIdx.append(jindex)
-                 if(len(quadVert)==4):
-                     ProcessVerts(mesh, quadVert[1], face, faceIdx, quadIdx[1], file)
-                     ProcessVerts(mesh, quadVert[3], face, faceIdx, quadIdx[3], file)
-                     ProcessVerts(mesh, quadVert[0], face, faceIdx, quadIdx[0], file)
-                     ProcessVerts(mesh, quadVert[1], face, faceIdx, quadIdx[1], file)
-                     ProcessVerts(mesh, quadVert[3], face, faceIdx, quadIdx[3], file)
-                     ProcessVerts(mesh, quadVert[2], face, faceIdx, quadIdx[2], file)
-
-
-class ProcessMesh():
-    def __init__(self, mesh, keyFrame, file):
-        for faceIdx, face in enumerate(mesh.faces):
-            ProcessFace(mesh, face, faceIdx, file)
+  # and last of all add the vertex colors
+  # yes, this one is genuinely optional
+  if doVertCols:
+    # 'c' indicates the next 3 floats are color values
+    file.write(struct.pack('<c', 'c')) 
+    file.write(struct.pack('>3f', color[0], color[1], color[2]))
 
 
-class Animate():
-    def __init__(self):
-        file = open(filepath, 'w')
-        file.write('\n') # apparently macosx needs some data in a blank file?
-        file.close()
-        file = open(filepath, 'w')
-        file.write('Blender %s - www.blender.org, source file: %r\n' %
+def ProcessFace(mesh, face, file):
+  quadVert = list() # initialize new lists to allow appending
+  quadIdx = list()
+
+  for jindex, vert in enumerate(face.vertices):
+    if(len(face.vertices) == 3): # triangle
+      ProcessVerts(mesh, mesh.vertices[vert], face, jindex, file)
+      print("Processed triangle at index: " + str(face.index))
+    if(len(face.vertices) == 4): # quad
+      quadVert.append(mesh.vertices[vert])
+      quadIdx.append(jindex)
+      # process the quads as triangles instead of quads
+      if(len(quadVert)==4):
+        ProcessVerts(mesh, quadVert[1], face, quadIdx[1], file)
+        ProcessVerts(mesh, quadVert[3], face, quadIdx[3], file)
+        ProcessVerts(mesh, quadVert[0], face, quadIdx[0], file)
+        ProcessVerts(mesh, quadVert[1], face, quadIdx[1], file)
+        ProcessVerts(mesh, quadVert[3], face, quadIdx[3], file)
+        ProcessVerts(mesh, quadVert[2], face, quadIdx[2], file)
+        print("Processed quad at index: " + str(face.index))
+
+
+def Animate():
+  """
+  file = open(filepath, 'w')
+  file.write('\n') # apparently macosx needs some data in a blank file?
+  file.close()
+  file = open(filepath, 'w')
+  file.write('Blender %s - www.blender.org, source file: %r\n' %
 (bpy.app.version_string, os.path.basename(bpy.data.filepath)))
-        file.write('property v means vertex {x, y, z}\n')
-        file.write('property n means normals {x, y, z}\n')
-        file.write('property u means uv coords {u, v}\n')
-        file.write('property d obsolete for now\n')
-        file.write('property c means vertex colors\n')
-        file.write(' \n')
-        file.write('property ? means animation key frame\n')
-        file.write('property $ means fps\n')
-        file.write('property # means number of vertices per frame\n')
+  file.write('property v means vertex {x, y, z}\n')
+  file.write('property n means normals {x, y, z}\n')
+  file.write('property u means uv coords {u, v}\n')
+  file.write('property d obsolete for now\n')
+  file.write('property c means vertex colors\n')
+  file.write(' \n')
+  file.write('property ? means animation key frame\n')
+  file.write('property $ means fps\n')
+  file.write('property # means number of frames\n')
+  """
+  file = open(_filepath, 'wb') # open the file for binary writing
+# We will be using the struct module to help us write the binary file.
+# NOTICE about the endian-ness: Java uses big-endian for numbers (>) and
+#   little endian for chars (<). Yeah, idk why  :\   Additionally,
+#   Python writes chars as single bytes but Java reads them as two
+#   Bytes and therefore each char must be read as a byte and cast as
+#   a char (EX in java: char mychar = (char)data_input_stream.readByte();)
+#   If for some reason the endian-ness is causing you problems,
+#   it may be because your processor architecture reads them reversed.
+  file.write(struct.pack('<c', '$')) # '$' signals fps
+  file.write(struct.pack('>i', _fps)) # set the next int as fps
+  file.write(struct.pack('<c', '#')) # '$' signals fps
+  file.write(struct.pack('>i', len(_keyFrames))) # set the number of frames
+  flipy = mathutils.Matrix(   # create a matrix for adjusting axes
+               [1.0, 0.0, 0.0, 0.0],\
+               [0.0, 0.0, 1.0, 0.0],\
+               [0.0, 1.0, 0.0, 0.0],\
+               [0.0, 0.0, 0.0, 1.0],\
+               )
 
-        flipy = mathutils.Matrix(\
-                     [1.0, 0.0, 0.0, 0.0],\
-                     [0.0, 0.0, 1.0, 0.0],\
-                     [0.0, 1.0, 0.0, 0.0],\
-                     [0.0, 0.0, 0.0, 1.0],\
-                     )
-
-        for frame in keyFrames:
-            scene.frame_set(frame)
-            scene.update
-            mesh=object.create_mesh(scene, True, "PREVIEW")
-            mesh.transform(flipy*object.matrix_world)
-            file.write('\n\n? %d : Animation keyFrame\n' % frame)
-            file.write('$ %d : fps\n' % fps)
-            ProcessMesh(mesh, frame, file)
-            bpy.data.meshes.remove(mesh)
-        file.close()
-
-
-class Validate():
-    def __init__(self):
-        flag=True
-        meshTest=object.data
-
-        if bpy.ops.object.mode_set.poll():
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        if not object:
-            print ("Error: select objects")
-            flag=False
-
-        if not object.type=="MESH":
-            print("Error: only meshes can be exported")
-            flag=False
-
-        if not (len(meshTest.uv_textures)>0) and not (len(meshTest.sticky)>0):
-            print ("Error: must have UV map")
-            flag=False
-
-        if not (len(meshTest.vertex_colors)>0):
-            global doVertCols
-            doVertCols=False
-
-        if len(bpy.context.selected_objects)>1:
-            print("Error: must only select one object")
-            flag=False
-
-        if flag:
-            print("Worked, foo")
-            doit=Animate()
+  # now loop through each keyframe and write the mesh
+  for frame in _keyFrames:
+    print("---Keyframe " + str(frame))
+    # position the scene at the current frame
+    _scene.frame_set(frame)
+    # update the scene to account for changes
+    _scene.update
+    # create a  new mesh datablock with modifiers applied
+    mesh = _object.create_mesh(_scene, True, "PREVIEW")
+    # flip axes because 'up' in blender (z axis) is not 'up' in the
+    #   game window (y axis)
+    mesh.transform(flipy * _object.matrix_world)
+    # now begin writing the info for this keyframe
+    file.write(struct.pack('<c', '?')) # '?' signals specify keyframe
+    file.write(struct.pack('>i', frame))
+    # now loop through each face and save it's vertices
+    for face in mesh.faces:
+      ProcessFace(mesh, face, file)
+    # as cleanup, remove the new datablock from blender
+    bpy.data.meshes.remove(mesh)
+  file.close() # the end
 
 
+def Validate():
+  flag = True # if the flag remains true, the mesh will be processed
+
+  # 'poll()' checks if the mode_set operator can be called
+  if bpy.ops.object.mode_set.poll(): 
+    # if so, put us into object mode for good measure
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+  # ensure _object exists
+  if not _object:
+    print ("Error: select object")
+    flag = False
+
+  # ensure only one object is selected
+  if len(bpy.context.selected_objects)>1:
+    print("Error: must only select one object")
+    flag=False
+
+  # ensure the object is a mesh (not a NURBS, camera, lamp, hairbrush...)
+  if not _object.type == "MESH":
+    print("Error: only meshes can be exported")
+    flag = False
+
+  # ensure the object has UV texture or Sticky texture coords
+  # TODO: This may not be an absolute necessity
+  if not (len(_object.data.uv_textures) > 0) \
+  and not (len(_object.data.sticky) > 0):
+    print ("Error: must have UV map")
+    flag=False
+
+  # check if the object has vertex colors. Note: not required
+  if not (len(_object.data.vertex_colors) > 0):
+    # if they're not there, we just won't use em
+    global doVertCols
+    doVertCols=False
+
+  if flag:
+    print("\n\nValidated, begin export\n\n")
+    Animate()
+
+
+# main
 Validate()
