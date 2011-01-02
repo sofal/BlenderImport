@@ -8,7 +8,7 @@ public class Mesh {
   private int _currentFrame = 0;
   private int _interval = 0;
   private int _fps = 0;
-  private int rot=10; // temp used to play animation
+  private int _rot = 10; // temp used to play animation
 
   public Mesh(String name) {
     _name = name;
@@ -30,7 +30,7 @@ public class Mesh {
   /* render the mesh using arrays */
   public void render(GameWindow window, int delta) {
     GL11.glTranslatef(0.0f, -2.0f, -10.0f);//position in front of camera 
-    GL11.glRotatef(rot++, 0.0f, 1.0f, 0.0f);//rotate 
+    GL11.glRotatef(_rot, 0.0f, 1.0f, 0.0f);//rotate 
     /* 
      * Enable gl arrays and set the pointer states with the FloatBuffers 
      * We change the state of the pointers as we proceed through the 
@@ -61,7 +61,9 @@ public class Mesh {
     // _remainder keeps track of the ms that build up just in case not
     // enough time passes to warrant a frame change (i.e. if time passed
     // is less than _interval
-    _currentFrame = _currentFrame + (_remainder + delta)/_interval;
+    int frameInc = (_remainder + delta) / _interval;
+    _currentFrame += frameInc;
+    _rot += frameInc;
     _remainder = ((delta + _remainder) % _interval);
     if(_currentFrame >= _action.length) {
       _currentFrame = 0; 
