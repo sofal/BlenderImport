@@ -1,6 +1,8 @@
 package blender;
 
 import java.io.IOException;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 //import blender.MeshData;
 
@@ -8,6 +10,12 @@ import org.lwjgl.opengl.GL11;
 public class TestState implements GameState {
 
   private Mesh _mesh;
+
+  private FPCamera _camera;
+
+  private float _mouseSensitivity;
+  private boolean _invertMouse;
+  private float _movementSpeed;
 
   /**
    * Retrieve a name that can be used to identify this state
@@ -32,6 +40,12 @@ public class TestState implements GameState {
     //_mesh = new MeshData(); // quick-load a mesh
     //_mesh.parseData("assets/Data.txt");
 
+    _camera = new FPCamera(0, 0, 0);
+
+    Mouse.setGrabbed(true);
+    _mouseSensitivity = 0.15f;
+    _invertMouse = true; // mwahaha
+    _movementSpeed = 0.01f;
 
     // testing binary loader
     _mesh = new Mesh("test"); // quick-load new mesh class
@@ -45,8 +59,8 @@ public class TestState implements GameState {
    * @param delta The amount of time thats passed since last render
    */
   public void render(GameWindow window, int delta) {
+    _camera.lookThrough();
     _mesh.render(window, delta);
-    //_mesh.draw();
   }
   
   /**
@@ -56,6 +70,31 @@ public class TestState implements GameState {
    * @param delta The amount time to update the state by
    */
   public void update(GameWindow window, int delta) {
+    if (Mouse.isGrabbed()) {
+      float dx = Mouse.getDX();
+      float dy = Mouse.getDY();
+      _camera.yawInc(dx * _mouseSensitivity);
+      _camera.pitchInc((_invertMouse ? dy : -dy) * _mouseSensitivity);
+    }
+
+    if (Keyboard.isKeyDown(Keyboard.KEY_E)) {
+      _camera.walkForward(_movementSpeed * delta);
+    }
+    if (Keyboard.isKeyDown(Keyboard.KEY_D)) {
+      _camera.walkBackward(_movementSpeed * delta);
+    }
+    if (Keyboard.isKeyDown(Keyboard.KEY_S)) {
+      _camera.strafeLeft(_movementSpeed * delta);
+    }
+    if (Keyboard.isKeyDown(Keyboard.KEY_F)) {
+      _camera.strafeRight(_movementSpeed * delta);
+    }
+
+    // TODO: This doesn't work right because it runs many times per second.
+    if (Keyboard.isKeyDown(Keyboard.KEY_ESCAPE)) {
+      Mouse.setGrabbed(!Mouse.isGrabbed());
+    }
+
     _mesh.update(window, delta);
   }
   
